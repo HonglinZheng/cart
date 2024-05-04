@@ -1,31 +1,30 @@
-body, html {
+#app {
     font-family: Arial, sans-serif;
-    padding: 0;
-    margin: 0;
-    background: #f4f4f4;
-    display: inline-grid;
-    grid-template-columns: 1fr 1fr;
-
+    display: grid;
+    grid-template-columns: 1fr 1fr; 
+    place-items: center;
 }
 
 .inventory-container {
-    width: 100px;
+    width: 300px;
     height: 100px;
     justify-content: space-around;
     padding: 20px;
+    align-items: center;
 }
 .cart-container {
-    width: 100px;
+    width: 300px;
     height: 100px;
     justify-content: space-around;
     padding: 20px;
+    align-items: center;
 
 }
 
 li{
     background-color: #fae3c0;
-    margin-top: 10px; /* Adds padding inside the top of each list item */
-    margin-bottom: 10px; /* Adds padding inside the bottom of each list item */
+    margin-top: 20px; /* Adds padding inside the top of each list item */
+    margin-bottom: 20px; /* Adds padding inside the bottom of each list item */
         
 }
 ul{
@@ -45,10 +44,8 @@ ul{
     background-color: #2737a1;
 }
 h1 {
-    font-size: 24px;
+    font-size: 40px;
 }
-
-
 
 button {
     margin-left: 5px;
