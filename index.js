@@ -8,39 +8,55 @@ const API = (() => {
     return fetch(`${URL}/inventory`).then((res) => res.json());
   };
 
-  const getInventoryById = (id) =>{
-    return fetch(`${URL}/inventory/${id}`)
-      .then(console.log("rundsafgae"))
-      .then(response => response.json())
-      .then(item => {
-        const count =item.count;
-        const name = item.content;
-        const id = item.id;
-        addToCart(id, count, name);
+  const updateCart = (id) => {
+    let isPresent;
+    fetch(`${URL}/cart`)
+      .then(response => { return response.json() })
+      .then(cartData => {
+        isPresent = cartData.some(item => item.id === Number(id));
+        console.log(`ID ${id} is in the cart:`, isPresent);
+      })
+      .then(() => {
+        if (!isPresent) { //this item hasn't been added to cart
+          console.log("this item hasn't been added to cart");
+          fetch(`${URL}/inventory/${id}`)
+            .then(response => response.json())
+            .then(item => {
+              const updatedItem = { ...item };
+              return fetch(`${URL}/cart`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(updatedItem),
+              });
+            })
+        } else {//this item already inside cart
+          let addedCount = 0;
+          console.log("this item already inside cart");
+          fetch(`${URL}/inventory/${id}`)
+            .then(response => response.json())
+            .then(item => { addedCount = item.count; })
+            .then(() => {return fetch(`${URL}/cart/${id}`);})
+            .then(response => response.json())
+            .then(item => {
+              const updatedItem = { ...item, count: item.count + addedCount };
+              return fetch(`${URL}/cart/${id}`, {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(updatedItem),
+              });
+            })
+        }
       })
   };
 
-  const addToCart = (id, count, name) => {
-    console.log("the item is " +count +name);
-    item = 1;
-    return fetch(`${URL}/cart`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(item)
-    })
-    .then(response => {
-      return response.json();
-    })
-  };
-
-  const updateCart = (id, newAmount) => {
-    // define your method to update an item in cart
-  };
-
   const deleteFromCart = (id) => {
-    // define your method to delete an item in cart
+    fetch(`${URL}/cart/${id}`, { method: "DELETE" })
+    return fetch(`${URL}/cart`).
+      then((res) => res.json());
   };
 
   const checkout = () => {
@@ -66,8 +82,8 @@ const API = (() => {
           body: JSON.stringify(updatedItem),
         });
       })
-    return fetch(`${URL}/inventory`).then((res) => res.json());
   };
+
   const plusCount = (id) => {
     fetch(`${URL}/inventory/${id}`)
       .then(res => res.json())
@@ -89,8 +105,6 @@ const API = (() => {
     getCart,
     updateCart,
     getInventory,
-    getInventoryById,
-    addToCart,
     deleteFromCart,
     checkout,
     plusCount,
@@ -133,8 +147,6 @@ const Model = (() => {
     getCart,
     updateCart,
     getInventory,
-    getInventoryById,
-    addToCart,
     deleteFromCart,
     checkout,
     plusCount,
@@ -145,8 +157,6 @@ const Model = (() => {
     getCart,
     updateCart,
     getInventory,
-    getInventoryById,
-    addToCart,
     deleteFromCart,
     checkout,
     plusCount,
@@ -175,10 +185,9 @@ const View = (() => {
 
   const renderInventory = (inventory) => {
     let Temp = "";
-
     inventory.forEach((item) => {
       const content = item.content;
-      console.log(content);
+      console.log(content + " has " + item.count);
       const liTemp = `<li id=${item.id}>
    <span>${content}</span>
    <button class="inventory__minus-btn">-</button>
@@ -207,19 +216,22 @@ const Controller = ((model, view) => {
       state.cart = data;
     });
   };
-  const handleUpdateAmount = () => {
 
+  const handleUpdateAmount = () => {
     view.inventorylistEl.addEventListener("click", (event) => {
       const element = event.target;
       if (element.className === "inventory__minus-btn") {
         const id = element.parentElement.getAttribute("id");
-        model.minusCount(id).then((data) => {
+        model.minusCount(id);
+        model.getInventory().then((data) => {
           state.inventory = data;
+          view.renderInventory(state.inventory);
         });
       } else if (element.className === "inventory__plus-btn") {
         const id = element.parentElement.getAttribute("id");
         model.plusCount(id).then((data) => {
           state.inventory = data;
+          view.renderInventory(state.inventory);
         });
       }
     });
@@ -231,21 +243,36 @@ const Controller = ((model, view) => {
       const element = event.target;
       if (element.className === "inventory__addToCart-btn") {
         const id = element.parentElement.getAttribute("id");
-        model.getInventoryById(id).then((data) => {
-          console.log(data);
+        model.updateCart(id);
+        model.getCart().then((data) => {
           state.cart = data;
         });
       }
     });
   };
 
-  const handleDelete = () => { };
+  const handleDelete = () => {
+    view.cartlistEl.addEventListener("click", (event) => {
+      const element = event.target;
+      if (element.className === "cart__delete-btn") {
+        const id = element.parentElement.getAttribute("id");
+        model.deleteFromCart(id).then((data) => {
+          state.cart = data;
+        });
+      }
+    });
+  };
 
-  const handleCheckout = () => { };
+  const handleCheckout = () => {
+    document.querySelectorAll('.checkout-btn').forEach(button => {
+      button.addEventListener('click', function() {
+          model.checkout();
+      })
+    })
+   };
   const bootstrap = () => {
     init();
     state.subscribe(() => {
-      console.log("run subscribe");
       view.renderInventory(state.inventory);
       view.renderCart(state.cart);
     });
