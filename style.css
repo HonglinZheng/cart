@@ -58,10 +58,13 @@ button {
 }
 
 .checkout-btn {
-    width: 100%;
+    width: 40%;
     padding: 10px;
     margin-top: 400px;
     background-color: black;
     color: white;
     font-size: 16px;
+    position: absolute;  /* Positioned absolutely relative to its nearest positioned ancestor */
+    right: 15px;            /* Right edge aligns with the right edge of the container */
+    bottom: 15px;    
 }
