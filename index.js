@@ -14,7 +14,6 @@ const API = (() => {
       .then(response => { return response.json() })
       .then(cartData => {
         isPresent = cartData.some(item => item.id === Number(id));
-        console.log(`ID ${id} is in the cart:`, isPresent);
       })
       .then(() => {
         if (!isPresent) { //this item hasn't been added to cart
@@ -50,19 +49,19 @@ const API = (() => {
               });
             })
         }
+        console.log("finish adding to cart")
       })
   };
 
   const deleteFromCart = (id) => {
-    fetch(`${URL}/cart/${id}`, { method: "DELETE" })
-    return fetch(`${URL}/cart`).
-      then((res) => res.json());
+    return fetch(`${URL}/cart/${id}`, { method: "DELETE" }).then((res) => res.json().then(console.log("delete from cart")));
   };
 
   const checkout = () => {
     // you don't need to add anything here
     return getCart().then((data) =>
       Promise.all(data.map((item) => deleteFromCart(item.id)))
+      .then(console.log("finish checkout"))
     );
   };
 
@@ -223,17 +222,14 @@ const Controller = ((model, view) => {
       if (element.className === "inventory__minus-btn") {
         const id = element.parentElement.getAttribute("id");
         model.minusCount(id);
-        model.getInventory().then((data) => {
-          state.inventory = data;
-          view.renderInventory(state.inventory);
-        });
       } else if (element.className === "inventory__plus-btn") {
         const id = element.parentElement.getAttribute("id");
-        model.plusCount(id).then((data) => {
-          state.inventory = data;
-          view.renderInventory(state.inventory);
-        });
+        model.plusCount(id);
       }
+      setTimeout(()=> model.getInventory().then((data) => {
+        state.inventory = data;
+        view.renderInventory(state.inventory);
+      }),200)
     });
 
   };
@@ -244,35 +240,43 @@ const Controller = ((model, view) => {
       if (element.className === "inventory__addToCart-btn") {
         const id = element.parentElement.getAttribute("id");
         model.updateCart(id);
-        model.getCart().then((data) => {
-          state.cart = data;
-        });
+        setTimeout(() => {
+          model.getCart().then((data) => {
+            console.log("final getCart");
+            state.cart = data;
+          })
+          }, 300)
       }
     });
   };
 
   const handleDelete = () => {
-    view.cartlistEl.addEventListener("click", (event) => {
+    view.cartlistEl.addEventListener("click", async(event) => {
       const element = event.target;
       if (element.className === "cart__delete-btn") {
         const id = element.parentElement.getAttribute("id");
-        model.deleteFromCart(id).then((data) => {
+        await model.deleteFromCart(id);
+        await model.getCart().then((data) => {
           state.cart = data;
         });
       }
-    });
+    })
   };
 
   const handleCheckout = () => {
     document.querySelectorAll('.checkout-btn').forEach(button => {
-      button.addEventListener('click', function() {
-          model.checkout();
+      button.addEventListener('click', async function() {
+          await model.checkout()
+          await model.getCart().then((data) => {
+            state.cart = data;
+          })
       })
     })
    };
   const bootstrap = () => {
     init();
     state.subscribe(() => {
+      console.log("SUBSCRIBING...");
       view.renderInventory(state.inventory);
       view.renderCart(state.cart);
     });
