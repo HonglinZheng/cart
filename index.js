@@ -181,6 +181,10 @@ const Controller = ((model, view) => {
       if (element.className === "inventory__addToCart-btn") {
         const currentID = Number(element.parentElement.getAttribute("id"));
         const addCount = view.itemCounts[currentID];
+        if (addCount === 0){
+          console.log("disable addToCart btn when addCount===0");
+          return;
+        }
         let currentCount;
         model.getCart().then(cartData => {
           const presentItem = cartData.find(item => item.id === currentID);
