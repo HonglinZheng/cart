@@ -8,106 +8,50 @@ const API = (() => {
     return fetch(`${URL}/inventory`).then((res) => res.json());
   };
 
-  const updateCart = (id) => {
-    let isPresent;
-    fetch(`${URL}/cart`)
-      .then(response => { return response.json() })
-      .then(cartData => {
-        isPresent = cartData.some(item => item.id === Number(id));
-      })
-      .then(() => {
-        if (!isPresent) { //this item hasn't been added to cart
-          console.log("this item hasn't been added to cart");
-          fetch(`${URL}/inventory/${id}`)
-            .then(response => response.json())
-            .then(item => {
-              const updatedItem = { ...item };
-              return fetch(`${URL}/cart`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify(updatedItem),
-              });
-            })
-        } else {//this item already inside cart
-          let addedCount = 0;
-          console.log("this item already inside cart");
-          fetch(`${URL}/inventory/${id}`)
-            .then(response => response.json())
-            .then(item => { addedCount = item.count; })
-            .then(() => {return fetch(`${URL}/cart/${id}`);})
-            .then(response => response.json())
-            .then(item => {
-              const updatedItem = { ...item, count: item.count + addedCount };
-              return fetch(`${URL}/cart/${id}`, {
-                method: "PATCH",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify(updatedItem),
-              });
-            })
-        }
-        console.log("finish adding to cart")
+  const addToCart = (inventoryItem) => {
+    return fetch(`${URL}/cart`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(inventoryItem),
+    }).then((res) => res.json());
+  };
+
+  const updateCart = (id, newAmount) => {
+    fetch(`${URL}/cart/${id}`)
+      .then((res) => res.json()) // use then() to wait fetch to complete and to return a new promise
+      .then(item => {
+        const updatedItem = { ...item, count: newAmount };
+        return fetch(`${URL}/cart/${id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updatedItem),
+        });
       })
   };
 
   const deleteFromCart = (id) => {
-    return fetch(`${URL}/cart/${id}`, { method: "DELETE" }).then((res) => res.json().then(console.log("delete from cart")));
+    fetch(`${URL}/cart/${id}`, { method: "DELETE" }).then((res) => res.json());
   };
 
   const checkout = () => {
     // you don't need to add anything here
     return getCart().then((data) =>
       Promise.all(data.map((item) => deleteFromCart(item.id)))
-      .then(console.log("finish checkout"))
     );
   };
 
-  const minusCount = (id) => {
-    fetch(`${URL}/inventory/${id}`)
-      .then(res => res.json())
-      .then(item => {
-        if (item.count === 0) {
-          return fetch(`${URL}/inventory`).then((res) => res.json());
-        }
-        const updatedItem = { ...item, count: item.count - 1 };
-        return fetch(`${URL}/inventory/${id}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(updatedItem),
-        });
-      })
-  };
-
-  const plusCount = (id) => {
-    fetch(`${URL}/inventory/${id}`)
-      .then(res => res.json())
-      .then(item => {
-        const updatedItem = { ...item, count: item.count + 1 };
-        return fetch(`${URL}/inventory/${id}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(updatedItem),
-        });
-      })
-      .then(res => res.json());
-    return fetch(`${URL}/inventory`).then((res) => res.json());
-  };
 
   return {
     getCart,
     updateCart,
     getInventory,
+    addToCart,
     deleteFromCart,
     checkout,
-    plusCount,
-    minusCount,
   };
 })();
 
@@ -146,33 +90,31 @@ const Model = (() => {
     getCart,
     updateCart,
     getInventory,
+    addToCart,
     deleteFromCart,
     checkout,
-    plusCount,
-    minusCount,
   } = API;
   return {
     State,
     getCart,
     updateCart,
     getInventory,
+    addToCart,
     deleteFromCart,
     checkout,
-    plusCount,
-    minusCount,
   };
 })();
 
 const View = (() => {
   const inventorylistEl = document.querySelector(".inventorylist");
   const cartlistEl = document.querySelector(".cartlist");
+  const itemCounts = {};
+  const itemContents = {};
 
   const renderCart = (cart) => {
     let cartTemp = "";
-
     cart.forEach((item) => {
       const content = item.content;
-      console.log(content);
       const liTemp = `<li id=${item.id}>
    <span>${content} * ${item.count}</span>
     <button class="cart__delete-btn">delete</button>
@@ -185,12 +127,14 @@ const View = (() => {
   const renderInventory = (inventory) => {
     let Temp = "";
     inventory.forEach((item) => {
+      itemCounts[item.id] = itemCounts[item.id] || 0;
+      itemContents[item.id] = item.content;
+      const count = itemCounts[item.id];
       const content = item.content;
-      console.log(content + " has " + item.count);
       const liTemp = `<li id=${item.id}>
    <span>${content}</span>
    <button class="inventory__minus-btn">-</button>
-   <span>${item.count}</span>
+   <span>${count}</span>
     <button class="inventory__plus-btn">+</button>
     <button class="inventory__addToCart-btn">add to cart</button>
     </li>`;
@@ -199,12 +143,11 @@ const View = (() => {
     inventorylistEl.innerHTML = Temp;
   };
   return {
-    renderInventory, renderCart, inventorylistEl, cartlistEl,
+    renderInventory, renderCart, inventorylistEl, cartlistEl, itemCounts, itemContents,
   };
 })();
 
 const Controller = ((model, view) => {
-  // implement your logic for Controller
   const state = new model.State();
 
   const init = () => {
@@ -221,15 +164,13 @@ const Controller = ((model, view) => {
       const element = event.target;
       if (element.className === "inventory__minus-btn") {
         const id = element.parentElement.getAttribute("id");
-        model.minusCount(id);
+        if (view.itemCounts[id] > 0)
+          view.itemCounts[id]--;
       } else if (element.className === "inventory__plus-btn") {
         const id = element.parentElement.getAttribute("id");
-        model.plusCount(id);
+        view.itemCounts[id]++;
       }
-      setTimeout(()=> model.getInventory().then((data) => {
-        state.inventory = data;
-        view.renderInventory(state.inventory);
-      }),200)
+      view.renderInventory(state.inventory);
     });
 
   };
@@ -238,41 +179,61 @@ const Controller = ((model, view) => {
     view.inventorylistEl.addEventListener("click", (event) => {
       const element = event.target;
       if (element.className === "inventory__addToCart-btn") {
-        const id = element.parentElement.getAttribute("id");
-        model.updateCart(id);
+        const currentID = Number(element.parentElement.getAttribute("id"));
+        const addCount = view.itemCounts[currentID];
+        let currentCount;
+        model.getCart().then(cartData => {
+          const presentItem = cartData.find(item => item.id === currentID);
+          if (presentItem) {// the item is present in cart; need update
+            currentCount = presentItem.count;
+            model.updateCart(currentID, currentCount + addCount);
+          } else {// the item is not in cart; need add
+            const newItem = {
+              content: view.itemContents[currentID],
+              id: currentID,
+              count: addCount
+            };
+            model.addToCart(newItem);
+          }
+        })
+
         setTimeout(() => {
           model.getCart().then((data) => {
-            console.log("final getCart");
             state.cart = data;
           })
-          }, 300)
+        }, 300)
       }
     });
+
   };
 
   const handleDelete = () => {
-    view.cartlistEl.addEventListener("click", async(event) => {
+    view.cartlistEl.addEventListener("click", (event) => {
       const element = event.target;
       if (element.className === "cart__delete-btn") {
         const id = element.parentElement.getAttribute("id");
-        await model.deleteFromCart(id);
-        await model.getCart().then((data) => {
-          state.cart = data;
-        });
+        model.deleteFromCart(id);
+        setTimeout(() => {
+          model.getCart().then((data) => {
+            state.cart = data;
+          })
+        }, 300);
       }
     })
   };
 
   const handleCheckout = () => {
     document.querySelectorAll('.checkout-btn').forEach(button => {
-      button.addEventListener('click', async function() {
-          await model.checkout()
-          await model.getCart().then((data) => {
+      button.addEventListener('click', function () {
+        model.checkout()
+        setTimeout(() => {
+          model.getCart().then((data) => {
             state.cart = data;
           })
+        }, 300);
       })
     })
-   };
+  };
   const bootstrap = () => {
     init();
     state.subscribe(() => {
@@ -291,3 +252,13 @@ const Controller = ((model, view) => {
 })(Model, View);
 
 Controller.bootstrap();
+
+/*
+(1) store inventory number locally
+(2) API module only responsible for making API only, don't put too much logic(controller or somewhere else)
+(3) View only responsible for generating HTML
+(4) Controller only reacts to user interaction
+(5) model is where you store the state and its the single source of the truth
+(6) In controller don't add UI to the HTML directly; update state first; let state do UI
+(7) DEcoupling centralize the logic 
+*/
