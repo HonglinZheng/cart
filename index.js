@@ -19,7 +19,7 @@ const API = (() => {
   };
 
   const updateCart = (id, newAmount) => {
-    fetch(`${URL}/cart/${id}`)
+    return fetch(`${URL}/cart/${id}`)
       .then((res) => res.json()) // use then() to wait fetch to complete and to return a new promise
       .then(item => {
         const updatedItem = { ...item, count: newAmount };
@@ -151,6 +151,7 @@ const Controller = ((model, view) => {
   const state = new model.State();
 
   const init = () => {
+    console.log("Initiating...");
     model.getInventory().then((data) => {
       state.inventory = data;
     });
@@ -181,61 +182,54 @@ const Controller = ((model, view) => {
       if (element.className === "inventory__addToCart-btn") {
         const currentID = Number(element.parentElement.getAttribute("id"));
         const addCount = view.itemCounts[currentID];
-        if (addCount === 0){
+        if (addCount === 0) {
           console.log("disable addToCart btn when addCount===0");
           return;
         }
-        let currentCount;
-        model.getCart().then(cartData => {
-          const presentItem = cartData.find(item => item.id === currentID);
-          if (presentItem) {// the item is present in cart; need update
-            currentCount = presentItem.count;
-            model.updateCart(currentID, currentCount + addCount);
-          } else {// the item is not in cart; need add
+        const presentItem = state.cart.find(item => item.id === currentID);
+        if (presentItem) {// the item is present in cart; need update
+          (async () => {
+            const currentCount = presentItem.count;
+            await model.updateCart(currentID, currentCount + addCount);
+            const data = await model.getCart();
+            state.cart = data;
+          })();
+        } else {// the item is not in cart; need add
+          (async () => {
             const newItem = {
               content: view.itemContents[currentID],
               id: currentID,
               count: addCount
             };
-            model.addToCart(newItem);
-          }
-        })
-
-        setTimeout(() => {
-          model.getCart().then((data) => {
+            await model.addToCart(newItem);
+            const data = await model.getCart();
             state.cart = data;
-          })
-        }, 300)
+          })();
+        }
       }
     });
 
   };
 
   const handleDelete = () => {
-    view.cartlistEl.addEventListener("click", (event) => {
+    view.cartlistEl.addEventListener("click", async (event) => {
       const element = event.target;
       if (element.className === "cart__delete-btn") {
         const id = element.parentElement.getAttribute("id");
-        model.deleteFromCart(id);
-        setTimeout(() => {
-          model.getCart().then((data) => {
-            state.cart = data;
-          })
-        }, 300);
+        await model.deleteFromCart(id);
+        const data = await model.getCart();
+        state.cart = await data;
       }
-    })
+    });
   };
 
   const handleCheckout = () => {
     document.querySelectorAll('.checkout-btn').forEach(button => {
-      button.addEventListener('click', function () {
-        model.checkout()
-        setTimeout(() => {
-          model.getCart().then((data) => {
-            state.cart = data;
-          })
-        }, 300);
-      })
+      button.addEventListener('click', async function () {
+        await model.checkout();
+        const data = await model.getCart();
+        state.cart = await data;
+      });
     })
   };
   const bootstrap = () => {
