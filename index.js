@@ -33,8 +33,9 @@ const API = (() => {
       })
   };
 
-  const deleteFromCart = (id) => {
-    fetch(`${URL}/cart/${id}`, { method: "DELETE" }).then((res) => res.json());
+  const deleteFromCart = async(id) => {
+    await fetch(`${URL}/cart/${id}`, { method: "DELETE" }).then((res) => res.json());
+    return await getCart();
   };
 
   const checkout = () => {
@@ -60,10 +61,23 @@ const Model = (() => {
   class State {
     #onChange;
     #inventory;
+    #itemCounts;
+    #itemContents;
     #cart;
+    #itemsPerPage;
+    #totalItemCount;
+    #pageNum;
+    #start;
+    #end;
+    #currentIndex;
+
     constructor() {
       this.#inventory = [];
       this.#cart = [];
+      this.#itemsPerPage = 5;
+      this.#currentIndex = 0;
+      this.#itemContents = {};
+      this.#itemCounts = {};
     }
     get cart() {
       return this.#cart;
@@ -72,13 +86,47 @@ const Model = (() => {
     get inventory() {
       return this.#inventory;
     }
+    get itemCounts() {
+      return this.#itemCounts;
+    }
+    get itemContents() {
+      return this.#itemContents;
+    }
 
+    get start(){
+      return this.#start;
+    }
+
+    get end(){
+      return this.#end;
+    }
+    
+    get currentIndex(){
+      return this.#currentIndex;
+    }
+    get pageNum(){
+      return this.#pageNum;
+    }
+
+    set totalItemCount(num){
+      this.#totalItemCount = num;
+      this.#pageNum = Math.ceil(this.#totalItemCount / this.#itemsPerPage);
+    }
+    set currentIndex(theIndex){
+      this.#currentIndex = theIndex;
+      this.#start = theIndex * this.#itemsPerPage;
+      this.#end = Math.min(this.#start + this.#itemsPerPage, this.#totalItemCount);
+    }
     set cart(newCart) {
       this.#cart = newCart;
       this.#onChange();
     }
     set inventory(newInventory) {
       this.#inventory = newInventory;
+      newInventory.forEach((item) => {
+        this.#itemCounts[item.id] = this.#itemCounts[item.id] || 0;
+        this.#itemContents[item.id] = item.content;
+      });
       this.#onChange();
     }
 
@@ -108,8 +156,21 @@ const Model = (() => {
 const View = (() => {
   const inventorylistEl = document.querySelector(".inventorylist");
   const cartlistEl = document.querySelector(".cartlist");
-  const itemCounts = {};
-  const itemContents = {};
+  const pageButtonContainerEl = document.querySelector(".pagination");
+  const itemsPerPage = 5;
+
+  const renderPagination = (inventory) => {
+    const totalItemCount = inventory.length;
+    let pageNum = Math.ceil(totalItemCount / itemsPerPage);
+    let paginationTemp = "";
+    paginationTemp += '<button class="pagination__prev-btn">Prev</button>';
+    for (let i = 0; i < pageNum; i++)  {
+      const liTemp = `<button class="page${i}">${i+1}</button>`;
+      paginationTemp += liTemp;
+    }
+    paginationTemp += '<button class="pagination__next-btn">Next</button>';
+    pageButtonContainerEl.innerHTML = paginationTemp;
+  }
 
   const renderCart = (cart) => {
     let cartTemp = "";
@@ -124,54 +185,84 @@ const View = (() => {
     cartlistEl.innerHTML = cartTemp;
   };
 
-  const renderInventory = (inventory) => {
+  const renderInventory = (inventory, itemCounts, theStart, theEnd) => {
     let Temp = "";
-    inventory.forEach((item) => {
-      itemCounts[item.id] = itemCounts[item.id] || 0;
-      itemContents[item.id] = item.content;
-      const count = itemCounts[item.id];
-      const content = item.content;
+    for (let i = theStart; i < theEnd; i++) {
+      item = inventory[i];
       const liTemp = `<li id=${item.id}>
-   <span>${content}</span>
+   <span>${item.content}</span>
    <button class="inventory__minus-btn">-</button>
-   <span>${count}</span>
+   <span>${itemCounts[item.id]}</span>
     <button class="inventory__plus-btn">+</button>
     <button class="inventory__addToCart-btn">add to cart</button>
     </li>`;
       Temp += liTemp;
-    });
+    }
     inventorylistEl.innerHTML = Temp;
   };
   return {
-    renderInventory, renderCart, inventorylistEl, cartlistEl, itemCounts, itemContents,
+    renderPagination, renderInventory, renderCart, pageButtonContainerEl, inventorylistEl, cartlistEl,
   };
 })();
 
 const Controller = ((model, view) => {
   const state = new model.State();
 
-  const init = () => {
+  const init = async() => {
     console.log("Initiating...");
-    model.getInventory().then((data) => {
+    await model.getInventory().then((data) => {
       state.inventory = data;
+      state.totalItemCount = data.length;
+      state.currentIndex = 0;
     });
-    model.getCart().then((data) => {
+    await model.getCart().then((data) => {
       state.cart = data;
     });
   };
+
+  const handlePage = () => {
+    view.pageButtonContainerEl.addEventListener("click", (event) => {
+      const element = event.target;
+      if (element.className === "pagination__prev-btn" && state.currentIndex >= 1) {
+          //go to the previous page
+          state.currentIndex--;
+          view.renderInventory(state.inventory, state.itemCounts, state.start, state.end);
+      } else if (element.className === "pagination__next-btn" && state.currentIndex < state.pageNum-1) {
+          //go to the next page
+          state.currentIndex++;
+          view.renderInventory(state.inventory, state.itemCounts, state.start, state.end);
+      } else if (Array.from(element.classList).some(cls => cls.startsWith('page'))){
+          //go to the selected page
+          let match = element.className.match(/^page(\d+)$/);
+          state.currentIndex = match ? Number(match[1]) : -1;
+          view.renderInventory(state.inventory, state.itemCounts, state.start, state.end);
+      }
+      handlePageColor();
+      }
+    );
+  };
+
+  const handlePageColor = async()=>{
+    // not selected pages are black
+    document.querySelectorAll('[class^="page"]').forEach(page => {
+      page.style.color = 'black';
+    });
+    //selected page is red
+    document.querySelectorAll(`.page${state.currentIndex}`).forEach(page=>{page.style.color="red";})
+  }
 
   const handleUpdateAmount = () => {
     view.inventorylistEl.addEventListener("click", (event) => {
       const element = event.target;
       if (element.className === "inventory__minus-btn") {
         const id = element.parentElement.getAttribute("id");
-        if (view.itemCounts[id] > 0)
-          view.itemCounts[id]--;
+        if (state.itemCounts[id] > 0)
+          state.itemCounts[id]--;
       } else if (element.className === "inventory__plus-btn") {
         const id = element.parentElement.getAttribute("id");
-        view.itemCounts[id]++;
+        state.itemCounts[id]++;
       }
-      view.renderInventory(state.inventory);
+      view.renderInventory(state.inventory, state.itemCounts, state.start, state.end);
     });
 
   };
@@ -181,23 +272,23 @@ const Controller = ((model, view) => {
       const element = event.target;
       if (element.className === "inventory__addToCart-btn") {
         const currentID = Number(element.parentElement.getAttribute("id"));
-        const addCount = view.itemCounts[currentID];
+        const addCount = state.itemCounts[currentID];
         if (addCount === 0) {
           console.log("disable addToCart btn when addCount===0");
           return;
         }
-        const presentItem = state.cart.find(item => item.id === currentID);
+        const presentItem = state.cart.find(item => item.id === currentID);// get cart
         if (presentItem) {// the item is present in cart; need update
           (async () => {
             const currentCount = presentItem.count;
             await model.updateCart(currentID, currentCount + addCount);
             const data = await model.getCart();
-            state.cart = data;
+            state.cart = data;//set cart
           })();
         } else {// the item is not in cart; need add
           (async () => {
             const newItem = {
-              content: view.itemContents[currentID],
+              content: state.itemContents[currentID],
               id: currentID,
               count: addCount
             };
@@ -212,13 +303,11 @@ const Controller = ((model, view) => {
   };
 
   const handleDelete = () => {
-    view.cartlistEl.addEventListener("click", async (event) => {
+    view.cartlistEl.addEventListener("click", async(event) => {
       const element = event.target;
       if (element.className === "cart__delete-btn") {
         const id = element.parentElement.getAttribute("id");
-        await model.deleteFromCart(id);
-        const data = await model.getCart();
-        state.cart = await data;
+        state.cart = await model.deleteFromCart(id);
       }
     });
   };
@@ -227,18 +316,20 @@ const Controller = ((model, view) => {
     document.querySelectorAll('.checkout-btn').forEach(button => {
       button.addEventListener('click', async function () {
         await model.checkout();
-        const data = await model.getCart();
-        state.cart = await data;
+        state.cart = [];
       });
     })
   };
   const bootstrap = () => {
-    init();
     state.subscribe(() => {
       console.log("SUBSCRIBING...");
-      view.renderInventory(state.inventory);
-      view.renderCart(state.cart);
+      view.renderInventory(state.inventory, state.itemCounts, state.start, state.end);
+      view.renderCart(state.cart);//get cart from state
+      view.renderPagination(state.inventory);
+      handlePageColor();
     });
+    init();
+    handlePage();
     handleUpdateAmount();
     handleAddToCart();
     handleDelete();
@@ -256,7 +347,7 @@ Controller.bootstrap();
 (2) API module only responsible for making API only, don't put too much logic(controller or somewhere else)
 (3) View only responsible for generating HTML
 (4) Controller only reacts to user interaction
-(5) model is where you store the state and its the single source of the truth
+(5) model is where you store the state and it's the single source of the truth
 (6) In controller don't add UI to the HTML directly; update state first; let state do UI
 (7) DEcoupling centralize the logic 
 */
