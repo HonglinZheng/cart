@@ -63,18 +63,24 @@ const Model = (() => {
     #inventory;
     #itemCounts;
     #cart;
+    //variables for pagination
     #itemsPerPage;
-    #totalItemCount;
-    #pageNum;
-    #start;
-    #end;
-    #currentIndex;
+    #totalInventoryCount;
+    #inventoryPageNum;
+    #inventoryStart;
+    #inventoryEnd;
+    #currentInventoryIndex;
+    #totalCartCount;
+    #cartPageNum;
+    #cartStart;
+    #cartEnd;
+    #currentCartIndex;
 
     constructor() {
       this.#inventory = [];
       this.#cart = [];
       this.#itemsPerPage = 5;
-      this.#currentIndex = 0;
+      this.#currentInventoryIndex = 0;
       this.#itemCounts = {};
     }
     get cart() {
@@ -87,32 +93,77 @@ const Model = (() => {
     get itemCounts() {
       return this.#itemCounts;
     }
-    get start(){
-      return this.#start;
+    get inventoryStart(){
+      return this.#inventoryStart;
     }
 
-    get end(){
-      return this.#end;
+    get inventoryEnd(){
+      return this.#inventoryEnd;
     }
     
-    get currentIndex(){
-      return this.#currentIndex;
+    get currentInventoryIndex(){
+      return this.#currentInventoryIndex;
     }
-    get pageNum(){
-      return this.#pageNum;
+    get inventoryPageNum(){
+      return this.#inventoryPageNum;
     }
 
-    set totalItemCount(num){
-      this.#totalItemCount = num;
-      this.#pageNum = Math.ceil(this.#totalItemCount / this.#itemsPerPage);
+    get cartStart(){
+      return this.#cartStart;
     }
-    set currentIndex(theIndex){
-      this.#currentIndex = theIndex;
-      this.#start = theIndex * this.#itemsPerPage;
-      this.#end = Math.min(this.#start + this.#itemsPerPage, this.#totalItemCount);
+
+    get cartEnd(){
+      return this.#cartEnd;
     }
+    
+    get cartIndex(){
+      return this.#currentCartIndex;
+    }
+    get cartPageNum(){
+      return this.#cartPageNum;
+    }
+    get currentCartIndex(){
+      return this.#currentCartIndex;
+    }
+    set cartEnd(num){
+      this.#cartEnd = num;
+    }
+    set cartStart(num){
+      this.#cartStart = num;
+    }
+    set totalInventoryCount(num){
+      this.#totalInventoryCount = num;
+      this.#inventoryPageNum = Math.ceil(this.#totalInventoryCount / this.#itemsPerPage);
+    }
+    
+    set currentInventoryIndex(theIndex){
+      this.#currentInventoryIndex = theIndex;
+      this.#inventoryStart = theIndex * this.#itemsPerPage;
+      this.#inventoryEnd = Math.min(this.#inventoryStart + this.#itemsPerPage, this.#totalInventoryCount);
+      this.#onChange();
+    }
+
+    set totalCartCount(num){
+      this.#totalCartCount = num;
+      this.#cartPageNum = Math.ceil(this.#totalCartCount / this.#itemsPerPage);
+    }
+    
+    set currentCartIndex(theIndex){
+      this.#currentCartIndex = theIndex;
+      this.#cartStart = theIndex * this.#itemsPerPage;
+      this.#cartEnd = Math.min(this.#cartStart + this.#itemsPerPage, this.#totalCartCount);
+      this.#onChange();
+    }
+
     set cart(newCart) {
       this.#cart = newCart;
+      this.#totalCartCount=newCart.length;
+      if (this.#cartPageNum < Math.ceil(this.#totalCartCount / this.#itemsPerPage)){
+        this.#currentCartIndex = this.#cartPageNum;
+        this.#cartPageNum = Math.ceil(this.#totalCartCount / this.#itemsPerPage);
+        this.#cartStart = this.#currentCartIndex * this.#itemsPerPage;
+      }
+      this.#cartEnd = Math.min(this.#cartStart + this.#itemsPerPage, this.#totalCartCount);
       this.#onChange();
     }
     set inventory(newInventory) {
@@ -149,39 +200,56 @@ const Model = (() => {
 const View = (() => {
   const inventorylistEl = document.querySelector(".inventorylist");
   const cartlistEl = document.querySelector(".cartlist");
-  const pageButtonContainerEl = document.querySelector(".pagination");
+  const inventoryPageButtonContainerEl = document.querySelector(".inventoryPagination");
+  const cartPageButtonContainerEl = document.querySelector(".cartPagination");
   const itemsPerPage = 5;
 
-  const renderPagination = (inventory) => {
+  const renderInventoryPagination = (inventory) => {
     const totalItemCount = inventory.length;
-    let pageNum = Math.ceil(totalItemCount / itemsPerPage);
+    let inventoryPageNum = Math.ceil(totalItemCount / itemsPerPage);
     let paginationTemp = "";
     paginationTemp += '<button class="pagination__prev-btn">Prev</button>';
-    for (let i = 0; i < pageNum; i++)  {
-      const liTemp = `<button class="page${i}">${i+1}</button>`;
+    for (let i = 0; i < inventoryPageNum; i++)  {
+      const liTemp = `<button class="page-inventory-${i}">${i+1}</button>`;
       paginationTemp += liTemp;
     }
     paginationTemp += '<button class="pagination__next-btn">Next</button>';
-    pageButtonContainerEl.innerHTML = paginationTemp;
+    inventoryPageButtonContainerEl.innerHTML = paginationTemp;
+  }
+  const renderCartPagination = (cart) => {
+    const totalCartCount = cart.length;
+    let cartPageNum = Math.ceil(totalCartCount / itemsPerPage);
+    let paginationTemp = "";
+    paginationTemp += '<button class="pagination__prev-btn">Prev</button>';
+    for (let i = 0; i < cartPageNum; i++)  {
+      const liTemp = `<button class="page-cart-${i}">${i+1}</button>`;
+      paginationTemp += liTemp;
+    }
+    paginationTemp += '<button class="pagination__next-btn">Next</button>';
+    cartPageButtonContainerEl.innerHTML = paginationTemp;
   }
 
-  const renderCart = (cart) => {
+  const renderCart = (cart, theStart, theEnd) => {
     let cartTemp = "";
-    cart.forEach((item) => {
+    for (let i = theStart; i < theEnd; i++) {
+      let item = cart[i];
+      if(!item){
+        return;
+      }
       const content = item.content;
       const liTemp = `<li id=cart-${item.id}>
-   <span>${content} * ${item.count}</span>
+   <span>${content} X ${item.count}</span>
     <button class="cart__delete-btn">delete</button>
     </li>`;
       cartTemp += liTemp;
-    });
+    }
     cartlistEl.innerHTML = cartTemp;
   };
 
   const renderInventory = (inventory, itemCounts, theStart, theEnd) => {
     let Temp = "";
     for (let i = theStart; i < theEnd; i++) {
-      item = inventory[i];
+      let item = inventory[i];
       const liTemp = `<li id=inventory-${item.id}>
    <span>${item.content}</span>
    <button class="inventory__minus-btn">-</button>
@@ -194,41 +262,61 @@ const View = (() => {
     inventorylistEl.innerHTML = Temp;
   };
   return {
-    renderPagination, renderInventory, renderCart, pageButtonContainerEl, inventorylistEl, cartlistEl,
+    renderInventoryPagination, renderCartPagination, renderInventory, renderCart, cartPageButtonContainerEl, inventoryPageButtonContainerEl, inventorylistEl, cartlistEl,
   };
 })();
 
 const Controller = ((model, view) => {
   const state = new model.State();
 
-  const init = async() => {
+  const init =() => {
     console.log("Initiating...");
-    await model.getInventory().then((data) => {
+    model.getInventory().then((data) => {
+      state.totalInventoryCount = data.length;
       state.inventory = data;
-      state.totalItemCount = data.length;
-      state.currentIndex = 0;
+      state.currentInventoryIndex = 0;
     });
-    await model.getCart().then((data) => {
+    model.getCart().then((data) => {
+      state.totalCartCount = data.length;
       state.cart = data;
+      state.currentCartIndex = 0;
     });
   };
 
-  const handlePage = () => {
-    view.pageButtonContainerEl.addEventListener("click", (event) => {
+  const handleInventoryPage = () => {
+    view.inventoryPageButtonContainerEl.addEventListener("click", (event) => {
       const element = event.target;
-      if (element.className === "pagination__prev-btn" && state.currentIndex >= 1) {
+      if (element.className === "pagination__prev-btn" && state.currentInventoryIndex >= 1) {
           //go to the previous page
-          state.currentIndex--;
-          view.renderInventory(state.inventory, state.itemCounts, state.start, state.end);
-      } else if (element.className === "pagination__next-btn" && state.currentIndex < state.pageNum-1) {
+          state.currentInventoryIndex--;
+      } else if (element.className === "pagination__next-btn" && state.currentInventoryIndex < state.inventoryPageNum-1) {
           //go to the next page
-          state.currentIndex++;
-          view.renderInventory(state.inventory, state.itemCounts, state.start, state.end);
+          state.currentInventoryIndex++;
       } else if (Array.from(element.classList).some(cls => cls.startsWith('page'))){
           //go to the selected page
-          let match = element.className.match(/^page(\d+)$/);
-          state.currentIndex = match ? Number(match[1]) : -1;
-          view.renderInventory(state.inventory, state.itemCounts, state.start, state.end);
+          let match = element.className.match(/^page-inventory-(\d+)$/);
+          state.currentInventoryIndex = match ? Number(match[1]) : -1;
+      }
+      handlePageColor();
+      }
+    );
+  };
+
+  const handleCartPage = () => {
+    view.cartPageButtonContainerEl.addEventListener("click", (event) => {
+      const element = event.target;
+      if (element.className === "pagination__prev-btn" && state.currentCartIndex >= 1) {
+          //go to the previous page
+          console.log("go to previous page");
+          state.currentCartIndex--;
+      } else if (element.className === "pagination__next-btn" && state.currentCartIndex < state.cartPageNum-1) {
+          //go to the next page
+          console.log("go to next page");
+          state.currentCartIndex++;
+      } else if (Array.from(element.classList).some(cls => cls.startsWith('page'))){
+          //go to the selected page
+          let match = element.className.match(/^page-cart-(\d+)$/);
+          state.currentCartIndex = match ? Number(match[1]) : -1;
       }
       handlePageColor();
       }
@@ -241,7 +329,8 @@ const Controller = ((model, view) => {
       page.style.color = 'black';
     });
     //selected page is red
-    document.querySelectorAll(`.page${state.currentIndex}`).forEach(page=>{page.style.color="red";})
+    document.querySelectorAll(`.page-inventory-${state.currentInventoryIndex}`).forEach(page=>{page.style.color="red";})
+    document.querySelectorAll(`.page-cart-${state.currentCartIndex}`).forEach(page=>{page.style.color="red";})
   }
 
   const handleUpdateAmount = () => {
@@ -255,7 +344,7 @@ const Controller = ((model, view) => {
         const id = Number(element.parentElement.id.split('-')[1]);
         state.itemCounts[id]++;
       }
-      view.renderInventory(state.inventory, state.itemCounts, state.start, state.end);
+      view.renderInventory(state.inventory, state.itemCounts, state.inventoryStart, state.inventoryEnd);
     });
 
   };
@@ -276,7 +365,7 @@ const Controller = ((model, view) => {
             const currentCount = presentItem.count;
             await model.updateCart(currentID, currentCount + addCount);
             const data = await model.getCart();
-            state.cart = data;//set cart
+            state.cart = data;
           })();
         } else {// the item is not in cart; need add
           (async () => {
@@ -314,16 +403,18 @@ const Controller = ((model, view) => {
       });
     })
   };
-  const bootstrap = () => {
+  const bootstrap = async() => {
     state.subscribe(() => {
       console.log("SUBSCRIBING...");
-      view.renderInventory(state.inventory, state.itemCounts, state.start, state.end);
-      view.renderCart(state.cart);
-      view.renderPagination(state.inventory);
+      view.renderInventory(state.inventory, state.itemCounts, state.inventoryStart, state.inventoryEnd);
+      view.renderCart(state.cart, state.cartStart, state.cartEnd);
+      view.renderInventoryPagination(state.inventory);
+      view.renderCartPagination(state.cart);
       handlePageColor();
     });
     init();
-    handlePage();
+    handleInventoryPage();
+    handleCartPage();
     handleUpdateAmount();
     handleAddToCart();
     handleDelete();
