@@ -62,7 +62,6 @@ const Model = (() => {
     #onChange;
     #inventory;
     #itemCounts;
-    #itemContents;
     #cart;
     #itemsPerPage;
     #totalItemCount;
@@ -76,7 +75,6 @@ const Model = (() => {
       this.#cart = [];
       this.#itemsPerPage = 5;
       this.#currentIndex = 0;
-      this.#itemContents = {};
       this.#itemCounts = {};
     }
     get cart() {
@@ -89,10 +87,6 @@ const Model = (() => {
     get itemCounts() {
       return this.#itemCounts;
     }
-    get itemContents() {
-      return this.#itemContents;
-    }
-
     get start(){
       return this.#start;
     }
@@ -125,7 +119,6 @@ const Model = (() => {
       this.#inventory = newInventory;
       newInventory.forEach((item) => {
         this.#itemCounts[item.id] = this.#itemCounts[item.id] || 0;
-        this.#itemContents[item.id] = item.content;
       });
       this.#onChange();
     }
@@ -176,7 +169,7 @@ const View = (() => {
     let cartTemp = "";
     cart.forEach((item) => {
       const content = item.content;
-      const liTemp = `<li id=${item.id}>
+      const liTemp = `<li id=cart-${item.id}>
    <span>${content} * ${item.count}</span>
     <button class="cart__delete-btn">delete</button>
     </li>`;
@@ -189,7 +182,7 @@ const View = (() => {
     let Temp = "";
     for (let i = theStart; i < theEnd; i++) {
       item = inventory[i];
-      const liTemp = `<li id=${item.id}>
+      const liTemp = `<li id=inventory-${item.id}>
    <span>${item.content}</span>
    <button class="inventory__minus-btn">-</button>
    <span>${itemCounts[item.id]}</span>
@@ -255,11 +248,11 @@ const Controller = ((model, view) => {
     view.inventorylistEl.addEventListener("click", (event) => {
       const element = event.target;
       if (element.className === "inventory__minus-btn") {
-        const id = element.parentElement.getAttribute("id");
+        const id = Number(element.parentElement.id.split('-')[1]);
         if (state.itemCounts[id] > 0)
           state.itemCounts[id]--;
       } else if (element.className === "inventory__plus-btn") {
-        const id = element.parentElement.getAttribute("id");
+        const id = Number(element.parentElement.id.split('-')[1]);
         state.itemCounts[id]++;
       }
       view.renderInventory(state.inventory, state.itemCounts, state.start, state.end);
@@ -271,13 +264,13 @@ const Controller = ((model, view) => {
     view.inventorylistEl.addEventListener("click", (event) => {
       const element = event.target;
       if (element.className === "inventory__addToCart-btn") {
-        const currentID = Number(element.parentElement.getAttribute("id"));
+        const currentID = Number(element.parentElement.id.split('-')[1]);
         const addCount = state.itemCounts[currentID];
         if (addCount === 0) {
           console.log("disable addToCart btn when addCount===0");
           return;
         }
-        const presentItem = state.cart.find(item => item.id === currentID);// get cart
+        const presentItem = state.cart.find(item => item.id === currentID);
         if (presentItem) {// the item is present in cart; need update
           (async () => {
             const currentCount = presentItem.count;
@@ -287,8 +280,9 @@ const Controller = ((model, view) => {
           })();
         } else {// the item is not in cart; need add
           (async () => {
+            const inventoryItem = state.inventory.find(item => item.id === currentID);
             const newItem = {
-              content: state.itemContents[currentID],
+              content: inventoryItem.content,
               id: currentID,
               count: addCount
             };
@@ -306,7 +300,7 @@ const Controller = ((model, view) => {
     view.cartlistEl.addEventListener("click", async(event) => {
       const element = event.target;
       if (element.className === "cart__delete-btn") {
-        const id = element.parentElement.getAttribute("id");
+        const id = Number(element.parentElement.id.split('-')[1]);
         state.cart = await model.deleteFromCart(id);
       }
     });
@@ -324,7 +318,7 @@ const Controller = ((model, view) => {
     state.subscribe(() => {
       console.log("SUBSCRIBING...");
       view.renderInventory(state.inventory, state.itemCounts, state.start, state.end);
-      view.renderCart(state.cart);//get cart from state
+      view.renderCart(state.cart);
       view.renderPagination(state.inventory);
       handlePageColor();
     });
